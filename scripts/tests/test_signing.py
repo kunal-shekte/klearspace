@@ -38,6 +38,11 @@ class IdentityTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             signing.resolve_identity(NAME, TEAM, LISTING + f'\n3) {"C" * 40} "{NAME}"')
 
+    def test_accepts_the_same_certificate_listed_in_multiple_keychains(self):
+        duplicate = LISTING + f'\n3) {SHA.lower()} "{NAME}"'
+        self.assertEqual(signing.resolve_identity(NAME, TEAM, duplicate), SHA)
+        self.assertEqual(signing.resolve_identity(SHA, TEAM, duplicate), SHA)
+
     def test_signature_requires_team_runtime_timestamp_and_no_debug_entitlement(self):
         metadata = f"Authority={NAME}\nTeamIdentifier={TEAM}\nTimestamp=Oct 17, 2026\nCodeDirectory flags=0x10000(runtime)\n"
         signing.validate_metadata(metadata, TEAM, True, {})

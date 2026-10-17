@@ -19,13 +19,13 @@ def resolve_identity(requested, team, listing):
     if not re.fullmatch(r"[A-Z0-9]{10}", team or ""):
         raise ValueError("Set KLEARSPACE_TEAM_ID to the intended publishing team's 10-character Team ID.")
     identities = re.findall(r'\b([A-Fa-f0-9]{40})\s+"([^"]+)"', listing)
-    matches = [(sha, name) for sha, name in identities
+    matches = {sha.upper() for sha, name in identities
                if name.startswith("Developer ID Application: ")
                and name.endswith(f"({team})")
-               and (requested.upper() == sha.upper() or requested == name)]
+               and (requested.upper() == sha.upper() or requested == name)}
     if len(matches) != 1:
         raise ValueError("No unique valid Developer ID Application identity matches the requested certificate and Team ID. Apple Development, Installer, and ad-hoc identities cannot notarize this app.")
-    return matches[0][0]
+    return matches.pop()
 
 
 def selected_identity():
