@@ -6,3 +6,10 @@ dist/
 *.app/
 *.zip
 *.log
+__pycache__/
+*.p12
+*.p8
+*.cer
+*.key
+*.mobileprovision
+.notarization/

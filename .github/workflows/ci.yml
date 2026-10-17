@@ -20,6 +20,8 @@ jobs:
           persist-credentials: false
       - name: Swift version
         run: swift --version
+      - name: Check signing and resumable notarization guards without credentials
+        run: python3 -m unittest discover -s scripts/tests -v
       - name: Run fixture and recovery tests
         run: swift test
       - name: Build app

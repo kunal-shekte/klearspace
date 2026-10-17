@@ -27,7 +27,7 @@ For a real scan, quit the demo and launch the built app normally. Avoid cleaning
 
 Outputs go to `dist/` and are ignored by Git. `KLEARSPACE_BUILD_DIR` controls intermediate build placement, and `KLEARSPACE_OUTPUT_DIR` controls app/DMG output placement. Both build and package scripts accept the output override.
 
-Packaging detects the executable's architecture for the DMG filename and generates `SHA256SUMS.txt`. For a public Developer ID build, set `KLEARSPACE_SIGNING_IDENTITY` to your **Developer ID Application** identity, then notarize and staple it using Apple's distribution tooling. Merely setting a signing identity does not notarize the app. Never commit certificates, credentials, signing profiles, user history, or scan reports.
+Packaging detects the executable's architecture for the DMG filename and generates `SHA256SUMS.txt`. A signed build requires both `KLEARSPACE_SIGNING_IDENTITY` and `KLEARSPACE_TEAM_ID`, and validates a matching **Developer ID Application** identity before building. For the full app + DMG submission, stapling, verification, and resume workflow, follow [Developer ID signing and notarization](docs/NOTARIZATION.md). Merely setting a signing identity does not notarize the app. Never commit certificates, credentials, signing profiles, user history, or scan reports.
 
 ## Pull requests
 

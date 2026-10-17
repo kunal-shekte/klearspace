@@ -74,7 +74,7 @@ Create an architecture-labelled DMG and its checksum:
 ./scripts/package-dmg.sh
 ```
 
-Build outputs live in `dist/`. Set `KLEARSPACE_BUILD_DIR` for another scratch directory or `KLEARSPACE_OUTPUT_DIR` for another app/DMG destination. The default build uses ad-hoc signing. Developer ID signing and notarization require your own Apple distribution credentials; see [Contributing](CONTRIBUTING.md#packaging).
+Build outputs live in `dist/`. Set `KLEARSPACE_BUILD_DIR` for another scratch directory or `KLEARSPACE_OUTPUT_DIR` for another app/DMG destination. The default build uses ad-hoc signing. Developer ID signing and notarization require your own Apple distribution credentials; see the [signing and notarization guide](docs/NOTARIZATION.md). The scripts do not change the existing public release's signing status.
 
 Preview the UI without enabling cleanup:
 
