@@ -2,6 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+signing_identity="${KLEARSPACE_SIGNING_IDENTITY:--}"
+if [ "$signing_identity" != "-" ]; then
+    signing_identity="$(python3 scripts/signing.py identity)"
+fi
+
 output_dir="${KLEARSPACE_OUTPUT_DIR:-dist}"
 mkdir -p "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
@@ -12,6 +17,9 @@ if [ ! -d "$app_path" ]; then
     exit 1
 fi
 codesign --verify --deep --strict "$app_path"
+if [ "$signing_identity" != "-" ]; then
+    python3 scripts/signing.py verify "$app_path"
+fi
 stage="$(mktemp -d "${TMPDIR:-/tmp}/klearspace-dmg.XXXXXX")"
 trap 'rm -rf "$stage"' EXIT
 ditto "$app_path" "$stage/Klearspace.app"
@@ -26,6 +34,10 @@ case "$architecture" in
 esac
 dmg="$output_dir/Klearspace-$version-$architecture.dmg"
 hdiutil create -volname Klearspace -srcfolder "$stage" -ov -format UDZO "$dmg"
+if [ "$signing_identity" != "-" ]; then
+    codesign --force --timestamp --sign "$signing_identity" --identifier io.github.kunal-shekte.klearspace.dmg "$dmg"
+    python3 scripts/signing.py verify --disk-image "$dmg"
+fi
 hdiutil verify "$dmg"
 (
     cd "$output_dir"

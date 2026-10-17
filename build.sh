@@ -2,6 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+signing_identity="${KLEARSPACE_SIGNING_IDENTITY:--}"
+if [ "$signing_identity" != "-" ]; then
+    signing_identity="$(python3 scripts/signing.py identity)"
+fi
+
 build_dir="${KLEARSPACE_BUILD_DIR:-.build}"
 output_dir="${KLEARSPACE_OUTPUT_DIR:-dist}"
 mkdir -p "$build_dir" "$output_dir"
@@ -37,11 +42,11 @@ cat > "$app_path/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 printf 'APPL????' > "$app_path/Contents/PkgInfo"
-signing_identity="${KLEARSPACE_SIGNING_IDENTITY:--}"
 if [ "$signing_identity" = "-" ]; then
-    codesign --force --deep --sign - --identifier io.github.kunal-shekte.klearspace "$app_path"
+    codesign --force --sign - --identifier io.github.kunal-shekte.klearspace "$app_path"
 else
-    codesign --force --deep --options runtime --timestamp --sign "$signing_identity" "$app_path"
+    codesign --force --options runtime --timestamp --entitlements scripts/release.entitlements --sign "$signing_identity" "$app_path"
+    python3 scripts/signing.py verify "$app_path"
 fi
 codesign --verify --deep --strict "$app_path"
 echo "Built: $app_path"
