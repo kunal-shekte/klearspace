@@ -5,8 +5,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+import tempfile
 
 import signing
 
@@ -122,12 +124,22 @@ class Pipeline:
             self.state["app_sha256"] = digest(archive)
             self.save()
         check_digest(archive, self.state["app_sha256"])
-        signing.verify(app)
-        if not self.submission("app", archive):
-            return 2
-        command(["xcrun", "stapler", "staple", app])
-        command(["xcrun", "stapler", "validate", app])
-        command(["spctl", "--assess", "--type", "execute", "--verbose=2", app])
+        # Always restore the exact submitted app, rather than trusting an output
+        # bundle that may have been rebuilt while Apple's response was pending.
+        with tempfile.TemporaryDirectory(prefix="app-", dir=self.directory) as staging:
+            command(["ditto", "-x", "-k", archive, staging])
+            candidate = Path(staging) / "Klearspace.app"
+            signing.verify(candidate)
+            if not self.submission("app", archive):
+                return 2
+            command(["xcrun", "stapler", "staple", candidate])
+            command(["xcrun", "stapler", "validate", candidate])
+            command(["spctl", "--assess", "--type", "execute", "--verbose=2", candidate])
+            if app.is_symlink() or app.is_file():
+                app.unlink()
+            elif app.exists():
+                shutil.rmtree(app)
+            candidate.replace(app)
 
         if "dmg_sha256" not in self.state:
             command([ROOT / "scripts/package-dmg.sh"])
@@ -140,26 +152,36 @@ class Pipeline:
             dmg = self.output / f"Klearspace-{config['version']}-{architecture}.dmg"
             self.state["dmg_name"] = dmg.name
             self.state["dmg_sha256"] = digest(dmg)
+            shutil.copyfile(dmg, self.directory / ("submitted-" + dmg.name))
             self.save()
         name = self.state["dmg_name"]
         if Path(name).name != name or not name.startswith("Klearspace-") or not name.endswith(".dmg"):
             raise ValueError("The saved DMG filename is invalid.")
         dmg = self.output / name
+        submitted_dmg = self.directory / ("submitted-" + name)
+        check_digest(submitted_dmg, self.state["dmg_sha256"])
         if self.state.get("ready_sha256"):
             check_digest(dmg, self.state["ready_sha256"])
-        else:
-            check_digest(dmg, self.state["dmg_sha256"])
-        if not self.submission("dmg", dmg):
+        if not self.submission("dmg", submitted_dmg):
             return 2
-        command(["xcrun", "stapler", "staple", dmg])
-        command(["xcrun", "stapler", "validate", dmg])
-        signing.verify(dmg, app=False)
-        command(["spctl", "--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", dmg])
-        command(["hdiutil", "verify", dmg])
-        final_hash = digest(dmg)
-        (self.output / "SHA256SUMS.txt").write_text(f"{final_hash}  {dmg.name}\n")
+        # Stapling changes DMG bytes. Retain the immutable submitted payload and
+        # work on a disposable copy so any interruption can safely retry locally.
+        with tempfile.TemporaryDirectory(prefix="dmg-", dir=self.directory) as staging:
+            candidate = Path(staging) / name
+            shutil.copyfile(submitted_dmg, candidate)
+            command(["xcrun", "stapler", "staple", candidate])
+            command(["xcrun", "stapler", "validate", candidate])
+            signing.verify(candidate, app=False)
+            command(["spctl", "--assess", "--type", "open", "--context", "context:primary-signature", "--verbose=2", candidate])
+            command(["hdiutil", "verify", candidate])
+            final_hash = digest(candidate)
+            candidate.replace(dmg)
         self.state["ready_sha256"] = final_hash
         self.save()
+        checksum = self.output / "SHA256SUMS.txt"
+        temporary = self.directory / "final-checksum.txt"
+        temporary.write_text(f"{final_hash}  {dmg.name}\n")
+        temporary.replace(checksum)
         print(f"Notarized and stapled app + DMG verified: {dmg}")
         print("Checksums reflect the final stapled DMG. No GitHub release was changed.")
         return 0

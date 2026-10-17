@@ -56,6 +56,8 @@ class PipelineTests(unittest.TestCase):
         self.app_status = "Accepted"
         self.dmg_status = "Accepted"
         self.interrupt = False
+        self.interrupt_dmg_staple = False
+        self.fail_dmg_assessment = False
         self.commands = []
         self.env = patch.dict(os.environ, {"KLEARSPACE_TEAM_ID": TEAM, "KLEARSPACE_SIGNING_IDENTITY": NAME})
         self.env.start()
@@ -84,8 +86,13 @@ class PipelineTests(unittest.TestCase):
         if args[0].endswith("build.sh"):
             app = self.output / "Klearspace.app"
             app.mkdir(exist_ok=True)
-        if args[0] == "ditto":
+            (app / "fixture").write_bytes(b"signed-app-fixture")
+        if args[:4] == ["ditto", "-c", "-k", "--keepParent"]:
             Path(args[-1]).write_bytes(b"signed-app-fixture")
+        if args[:3] == ["ditto", "-x", "-k"]:
+            app = Path(args[-1]) / "Klearspace.app"
+            app.mkdir()
+            (app / "fixture").write_bytes(Path(args[-2]).read_bytes())
         if args[0].endswith("package-dmg.sh"):
             (self.output / f"Klearspace-{VERSION}-arm64.dmg").write_bytes(b"signed-dmg-fixture")
             (self.output / "SHA256SUMS.txt").write_text("provisional checksum")
@@ -95,6 +102,12 @@ class PipelineTests(unittest.TestCase):
             path = Path(args[-1])
             if not path.read_bytes().endswith(b"ticket"):
                 path.write_bytes(path.read_bytes() + b"ticket")
+            if self.interrupt_dmg_staple:
+                self.interrupt_dmg_staple = False
+                raise RuntimeError("interrupted after ticket attachment")
+        if args[0] == "spctl" and "open" in args and self.fail_dmg_assessment:
+            self.fail_dmg_assessment = False
+            raise RuntimeError("temporary assessment failure")
         return ""
 
     def fake_notary(self, operation, *args):
@@ -160,6 +173,46 @@ class PipelineTests(unittest.TestCase):
             self.pipeline().execute()
         self.assertFalse(any("stapler" in command for command in self.commands))
         self.assertFalse((self.output / "SHA256SUMS.txt").exists())
+
+    def assert_dmg_retry(self):
+        with self.assertRaises(RuntimeError):
+            self.pipeline().execute()
+        self.assertFalse((self.output / "SHA256SUMS.txt").exists())
+        self.assertEqual(self.pipeline().execute(), 0)
+        self.assertEqual(len(self.submits), 2)
+
+    def test_interrupted_dmg_stapling_can_resume_without_reupload(self):
+        self.interrupt_dmg_staple = True
+        self.assert_dmg_retry()
+
+    def test_failed_assessment_after_dmg_stapling_can_resume_without_reupload(self):
+        self.fail_dmg_assessment = True
+        self.assert_dmg_retry()
+
+    def test_resume_restores_app_from_the_submitted_archive(self):
+        self.app_status = "In Progress"
+        self.pipeline().execute()
+        fixture = self.output / "Klearspace.app/fixture"
+        fixture.write_bytes(b"different-app-build")
+        self.app_status = "Accepted"
+        self.assertEqual(self.pipeline().execute(), 0)
+        self.assertEqual(fixture.read_bytes(), b"signed-app-fixture")
+        self.assertEqual(len(self.submits), 2)
+
+    def test_changed_submitted_dmg_is_refused(self):
+        self.dmg_status = "In Progress"
+        self.pipeline().execute()
+        Path(self.submits[-1]).write_bytes(b"unexpected mutation")
+        with self.assertRaisesRegex(ValueError, "changed or disappeared"):
+            self.pipeline().execute()
+        self.assertEqual(len(self.submits), 2)
+
+    def test_changed_final_dmg_is_refused(self):
+        self.pipeline().execute()
+        (self.output / f"Klearspace-{VERSION}-arm64.dmg").write_bytes(b"unexpected mutation")
+        with self.assertRaisesRegex(ValueError, "changed or disappeared"):
+            self.pipeline().execute()
+        self.assertEqual(len(self.submits), 2)
 
 
 if __name__ == "__main__":

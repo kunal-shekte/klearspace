@@ -76,9 +76,11 @@ If an upload was interrupted before its ID could be saved, the script refuses to
 xcrun notarytool history --keychain-profile Klearspace-personal-notary
 ```
 
-After identifying the correct submission for those exact bytes, resume with `--recover-app-id UUID` or `--recover-dmg-id UUID`. Do not guess IDs or take them from a different release. A changed archive or disk image is rejected. Changes to the source commit, version, signing identity, team, or profile require a fresh output directory.
+After identifying the correct submission for those exact bytes, resume with `--recover-app-id UUID` or `--recover-dmg-id UUID`. Do not guess IDs or take them from a different release. A changed submitted archive, saved submitted DMG, or verified final DMG is rejected. Changes to the source commit, version, signing identity, team, or profile require a fresh output directory.
 
 Ticket publication can lag behind acceptance. If `stapler` temporarily fails, rerun the same command later. Signing, stapling, or repackaging after checksumming changes the distributed bytes; the pipeline recalculates the checksum only after its final checks.
+
+The pipeline restores the app from its submitted ZIP on each retry. It retains the exact submitted DMG in `.notarization/` and staples a disposable copy, so an interruption during stapling or a later assessment can resume without changing the submitted payload or uploading again. Keep that directory until release verification is complete; it needs space for the archive, submitted DMG, and temporary copies.
 
 ## Publish only after validation
 
