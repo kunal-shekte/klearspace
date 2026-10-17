@@ -1,0 +1,16 @@
+Klearspace
+Copyright (c) 2026 Kunal Shekte
+Licensed under the MIT License. See LICENSE.
+
+Acknowledgement
+The developer cleanup categories were inspired by a dev-cleanup.sh script
+shared by the project owner, whose header references:
+https://github.com/jemishavasoya/dev-cleaner
+
+Klearspace is an independently implemented Swift application. The referenced
+shell script is not bundled, executed, or copied into this repository.
+The upstream dev-cleaner project is separately licensed under MIT.
+
+Klearspace uses Apple system frameworks and SF Symbols, which remain subject
+to Apple's applicable platform terms. No third-party runtime packages are
+bundled with this application.

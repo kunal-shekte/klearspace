@@ -1,0 +1,28 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Swift version
+        run: swift --version
+      - name: Run fixture and recovery tests
+        run: swift test
+      - name: Build app
+        run: ./build.sh
+      - name: Package and verify disk image
+        run: ./scripts/package-dmg.sh
